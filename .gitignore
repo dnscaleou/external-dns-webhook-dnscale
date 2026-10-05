@@ -1,0 +1,12 @@
+.gocache/
+bin/
+dist/
+coverage.out
+.env
+.env.*
+.test-api-token
+*.pem
+*.key
+*kubeconfig*
+__pycache__/
+.DS_Store

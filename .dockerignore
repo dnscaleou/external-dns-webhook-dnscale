@@ -1,0 +1,10 @@
+.git
+.gocache
+bin
+dist
+.env*
+.test-api-token
+*.pem
+*.key
+*kubeconfig*
+__pycache__
