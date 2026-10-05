@@ -28,7 +28,7 @@ provider:
   webhook:
     image:
       repository: ghcr.io/dnscaleou/external-dns-webhook-dnscale
-      tag: v0.1.0
+      tag: v1.0.0
       pullPolicy: IfNotPresent
     env:
       # ExternalDNS does not forward its dry-run flag over the webhook protocol.

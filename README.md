@@ -40,7 +40,7 @@ is unnecessary.
      --from-file=token=/secure/path/dnscale-api-token
    ```
 
-2. Download [deploy/values.yaml](deploy/values.yaml) from the `v0.1.0` release.
+2. Download [deploy/values.yaml](deploy/values.yaml) from the `v1.0.0` release.
    Replace the example domain in **both** `domainFilters` and
    `DNSCALE_DOMAIN_FILTER`, the zone UUID in `DNSCALE_ZONE_ID_FILTER`, and the
    stable owner ID in **both** `txtOwnerId` and `DNSCALE_TXT_OWNER_ID`.
@@ -74,7 +74,7 @@ controller must populate their status with an IP address or hostname.
 Annotations use the current `external-dns.kubernetes.io/` prefix.
 
 The sidecar image is
-`ghcr.io/dnscaleou/external-dns-webhook-dnscale:v0.1.0`. Pin an image digest for
+`ghcr.io/dnscaleou/external-dns-webhook-dnscale:v1.0.0`. Pin an image digest for
 controlled upgrades. The chart is provided by the ExternalDNS project; there
 is no separate DNScale chart or cert-manager APIService to install.
 
