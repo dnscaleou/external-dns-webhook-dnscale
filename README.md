@@ -185,7 +185,9 @@ For an opt-in live run, additionally provide `DNSCALE_E2E_DOMAIN`,
 `python3 scripts/e2e.py --live`. The domain must already have public NS
 delegation. The script creates a random namespace below that domain, verifies
 public DNS, and cleans up only its run's records. It requires `dig` and real
-write permission. Live tests never run in ordinary pull-request CI. Keep all
+write permission. DNS checks allow 660 seconds for the tested TTLs to expire;
+override with `--dns-timeout` if needed. Live tests never run in ordinary
+pull-request CI. Keep all
 tokens, kubeconfigs, customer names, and private test reports out of Git.
 
 ## License

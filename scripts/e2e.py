@@ -9,6 +9,7 @@ import argparse
 import json
 import os
 import pathlib
+import re
 import shutil
 import socket
 import subprocess
@@ -23,7 +24,8 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--live", action="store_true")
 parser.add_argument("--image", default="dnscale-external-dns:e2e")
-parser.add_argument("--keep-cluster", action="store_true", help="retain failed fixture cluster for debugging")
+parser.add_argument("--keep-cluster", action="store_true", help="retain fixture cluster for debugging")
+parser.add_argument("--dns-timeout", type=int, default=660, help="public DNS convergence deadline in seconds; allows the tested 600s TTL to expire")
 args = parser.parse_args()
 if args.live and args.keep_cluster:
     parser.error("live runs always remove their credential-bearing cluster")
@@ -129,8 +131,16 @@ def public_dns(name, typ, expected):
     if not servers:
         raise RuntimeError("live zone has no public NS delegation")
     def check():
-        return all(sorted(command("dig", "+short", "@" + server, name + "." + domain, typ).strip().splitlines()) == sorted(expected) for server in servers + ["1.1.1.1"])
-    wait_for(check, "authoritative and recursive DNS agree", timeout=180)
+        for server in servers + ["1.1.1.1"]:
+            output = command("dig", "+noall", "+comments", "+answer", "@" + server, name + "." + domain, typ)
+            status = re.search(r"status: (\w+)", output)
+            if not status or status.group(1) not in ("NOERROR", "NXDOMAIN"):
+                return False
+            answers = [" ".join(line.split()[4:]) for line in output.splitlines() if line and not line.startswith(";")]
+            if sorted(answers) != sorted(expected):
+                return False
+        return True
+    wait_for(check, "authoritative and recursive DNS agree", timeout=args.dns_timeout)
 
 
 try:
