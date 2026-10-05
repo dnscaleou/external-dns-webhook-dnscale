@@ -36,6 +36,7 @@ token = pathlib.Path(os.environ["DNSCALE_E2E_TOKEN_FILE"]).read_text().strip() i
 work = pathlib.Path(tempfile.mkdtemp(prefix="external-dns-e2e-"))
 env = dict(os.environ, KUBECONFIG=str(work / "kubeconfig"))
 namespace = "external-dns-test"
+service_name = "test-service"
 base_url = "https://api.dnscale.eu" if args.live else ""
 forward = None
 created_cluster = False
@@ -117,8 +118,8 @@ def release(policy="upsert-only", dry_run=False):
 
 
 def service(targets, ttl=300):
-    apply({"apiVersion": "v1", "kind": "Service", "metadata": {"name": "test-service", "labels": {"external-dns": "enabled"}, "annotations": {"external-dns.kubernetes.io/hostname": "service." + domain, "external-dns.kubernetes.io/ttl": str(ttl)}}, "spec": {"type": "LoadBalancer", "ports": [{"port": 80}]}})
-    kubectl("patch", "service", "test-service", "--subresource=status", "--type=merge", "-p", json.dumps({"status": {"loadBalancer": {"ingress": [{"hostname" if ":" not in value and not value[0].isdigit() else "ip": value} for value in targets]}}}))
+    apply({"apiVersion": "v1", "kind": "Service", "metadata": {"name": service_name, "labels": {"external-dns": "enabled"}, "annotations": {"external-dns.kubernetes.io/hostname": "service." + domain, "external-dns.kubernetes.io/ttl": str(ttl)}}, "spec": {"type": "LoadBalancer", "ports": [{"port": 80}]}})
+    kubectl("patch", "service", service_name, "--subresource=status", "--type=merge", "-p", json.dumps({"status": {"loadBalancer": {"ingress": [{"hostname" if ":" not in value and not value[0].isdigit() else "ip": value} for value in targets]}}}))
 
 
 def create_manual(name, typ, content):
@@ -190,6 +191,15 @@ try:
     assert all(r["ttl"] == 600 for r in records() if r["name"].rstrip(".") == "service." + domain)
     service(["192.0.2.2", "192.0.2.3", "2001:db8::2"], 300)
     wait_for(lambda: all(r["ttl"] == 300 for r in records() if r["name"].rstrip(".") == "service." + domain), "TTL-only update")
+    # Reassign the same DNS name to another resource between reconciliations.
+    # This changes the TXT metadata as well as the data targets.
+    kubectl("scale", "deployment/external-dns", "--replicas=0")
+    kubectl("wait", "--for=delete", "pod", "-l", "app.kubernetes.io/instance=external-dns", "--timeout=90s")
+    kubectl("delete", "service", service_name)
+    service_name = "replacement-service"
+    service(["192.0.2.4", "2001:db8::3"])
+    kubectl("scale", "deployment/external-dns", "--replicas=1")
+    wait_for(lambda: values("service", "A") == ["192.0.2.4"] and values("service", "AAAA") == ["2001:db8::3"] and all(len(values(name, "TXT")) == 1 and "service/" + namespace + "/" + service_name in values(name, "TXT")[0] for name in ["edns-a.service", "edns-aaaa.service"]), "resource replacement updates single-value ownership metadata")
     kubectl("delete", "ingress", "test-ingress")
     time.sleep(9)
     assert values("ingress", "CNAME") == ["lb.example.net"], "upsert-only deleted DNS"
@@ -208,7 +218,7 @@ try:
         time.sleep(9)
         assert request("GET", "/test/state")["writes"] == writes, "steady state wrote DNS"
     print("PASS: restart and steady-state reconciliation", flush=True)
-    kubectl("delete", "service", "test-service")
+    kubectl("delete", "service", service_name)
     wait_for(lambda: len(records()) == len(manual), "sync removes only this controller's records")
     remaining = {r["id"]: r for r in records()}
     assert all(remaining[r["id"]] == r for r in manual), "unrelated or foreign records changed"

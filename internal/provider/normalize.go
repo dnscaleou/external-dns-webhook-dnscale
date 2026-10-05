@@ -140,6 +140,9 @@ func (p *Provider) normalize(ep Endpoint, desired bool) (Endpoint, error) {
 	if ep.RecordType == "CNAME" && len(ep.Targets) != 1 {
 		return ep, invalid("CNAME requires exactly one target")
 	}
+	if ep.RecordType == "TXT" && len(ep.Targets) != 1 {
+		return ep, invalid("ownership TXT requires exactly one value")
+	}
 	return ep, nil
 }
 

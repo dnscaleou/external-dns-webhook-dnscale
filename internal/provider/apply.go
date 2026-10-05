@@ -87,6 +87,9 @@ func (p *Provider) Apply(ctx context.Context, changes Changes) error {
 			}
 			d.current = append(d.current, r)
 		}
+		if (ep.RecordType == "CNAME" || ep.RecordType == "TXT") && len(d.current) > 1 {
+			return conflict("CNAME and ownership TXT record sets must contain one value")
+		}
 	}
 	slices.Sort(keys)
 	// Verify existing ownership, and ensure data and ownership cannot be detached
@@ -225,9 +228,12 @@ func (p *Provider) upsert(ctx context.Context, d *delta) error {
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	if ep.RecordType == "CNAME" && len(d.current) > 0 {
+	// Upstream's TXT registry reads only one metadata value. Replace it using
+	// the selected-record API rather than temporarily adding a second value;
+	// otherwise a restart can hide an obsolete value from subsequent plans.
+	if (ep.RecordType == "CNAME" || ep.RecordType == "TXT") && len(d.current) > 0 {
 		if len(d.current) != 1 {
-			return conflict("invalid CNAME record set")
+			return conflict("invalid single-value record set")
 		}
 		r := d.current[0]
 		if r.Content != ep.Targets[0] || r.TTL != int(ep.RecordTTL) {

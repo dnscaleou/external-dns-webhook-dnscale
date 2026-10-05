@@ -192,6 +192,53 @@ func TestTTLUpdateAndMetadataChange(t *testing.T) {
 	}
 }
 
+func TestMetadataUpdateNeverLeavesMultipleOwnershipValues(t *testing.T) {
+	initial := data("A", "192.0.2.1")
+	updated := data("A", "192.0.2.2")
+	oldPair, newPair := pair(initial), pair(updated)
+	newPair[1].Targets = []string{`"heritage=external-dns,external-dns/owner=test-owner,external-dns/resource=service/default/aaa-new"`}
+	for failAt := 1; failAt <= 3; failAt++ {
+		for _, after := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%d/after=%t", failAt, after), func(t *testing.T) {
+				p, a := fresh(t)
+				assertApply(t, p, Changes{Create: oldPair})
+				a.failAt, a.failAfter = a.writes+failAt, after
+				_ = p.Apply(context.Background(), Changes{UpdateOld: oldPair, UpdateNew: newPair})
+				inventory, err := p.Records(context.Background())
+				if err != nil {
+					t.Fatal(err)
+				}
+				for _, ep := range inventory {
+					if ep.RecordType == "TXT" && len(ep.Targets) != 1 {
+						t.Fatal("restart would hide an obsolete ownership value")
+					}
+				}
+				a.failAt = 0
+				// Replan from a fresh inventory as a restarted controller would,
+				// rather than relying on a replay of its previous HTTP request.
+				p, err = New(a, Options{Domains: []string{"example.org"}, ZoneIDs: []string{testZone}, OwnerID: "test-owner"})
+				if err != nil {
+					t.Fatal(err)
+				}
+				assertApply(t, p, Changes{UpdateOld: inventory, UpdateNew: newPair})
+				got, err := p.Records(context.Background())
+				if err != nil || len(got) != 2 {
+					t.Fatalf("restart recovery: %v, %#v", err, got)
+				}
+				for _, ep := range got {
+					want := newPair[0]
+					if ep.RecordType == "TXT" {
+						want = newPair[1]
+					}
+					if !slices.Equal(ep.Targets, want.Targets) {
+						t.Fatalf("recovery targets: %v != %v", ep.Targets, want.Targets)
+					}
+				}
+			})
+		}
+	}
+}
+
 func TestRefusesUnownedForeignDisabledOrChangedRecords(t *testing.T) {
 	for _, kind := range []string{"unowned", "foreign", "disabled", "changed", "foreign-marker", "unrelated-marker"} {
 		t.Run(kind, func(t *testing.T) {
