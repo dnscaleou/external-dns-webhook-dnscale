@@ -190,6 +190,13 @@ override with `--dns-timeout` if needed. Live tests never run in ordinary
 pull-request CI. Keep all
 tokens, kubeconfigs, customer names, and private test reports out of Git.
 
+## Operations and contribution
+
+For operating this webhook alongside cert-manager, see
+[Kubernetes DNS and TLS operations with DNScale](https://dnscale.eu/learning/kubernetes-dns-tls-operations).
+See [maintainers and support](MAINTAINERS.md), [contribution instructions](CONTRIBUTING.md),
+and [security reporting](SECURITY.md).
+
 ## License
 
 Apache-2.0. The wire contract follows the
